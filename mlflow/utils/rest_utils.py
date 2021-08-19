@@ -1,6 +1,4 @@
 import base64
-import time
-import logging
 import json
 import requests
 from contextlib import contextmanager
