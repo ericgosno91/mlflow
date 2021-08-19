@@ -73,7 +73,7 @@ def test_http_request_hostonly(request):
     request.return_value = response
     http_request(host_only, "/my/endpoint", method="GET")
     request.assert_called_with(
-        "GET", "http://my-host/my/endpoint", verify=True, headers=_DEFAULT_HEADERS, timeout=30,
+        "GET", "http://my-host/my/endpoint", verify=True, headers=_DEFAULT_HEADERS, timeout=10,
     )
 
 
@@ -86,7 +86,7 @@ def test_http_request_cleans_hostname(request):
     request.return_value = response
     http_request(host_only, "/my/endpoint", method="GET")
     request.assert_called_with(
-        "GET", "http://my-host/my/endpoint", verify=True, headers=_DEFAULT_HEADERS, timeout=30,
+        "GET", "http://my-host/my/endpoint", verify=True, headers=_DEFAULT_HEADERS, timeout=10,
     )
 
 
@@ -100,7 +100,7 @@ def test_http_request_with_basic_auth(request):
     headers = dict(_DEFAULT_HEADERS)
     headers["Authorization"] = "Basic dXNlcjpwYXNz"
     request.assert_called_with(
-        "GET", "http://my-host/my/endpoint", verify=True, headers=headers, timeout=30,
+        "GET", "http://my-host/my/endpoint", verify=True, headers=headers, timeout=10,
     )
 
 
@@ -114,7 +114,7 @@ def test_http_request_with_token(request):
     headers = dict(_DEFAULT_HEADERS)
     headers["Authorization"] = "Bearer my-token"
     request.assert_called_with(
-        "GET", "http://my-host/my/endpoint", verify=True, headers=headers, timeout=30,
+        "GET", "http://my-host/my/endpoint", verify=True, headers=headers, timeout=10,
     )
 
 
@@ -126,7 +126,7 @@ def test_http_request_with_insecure(request):
     request.return_value = response
     http_request(host_only, "/my/endpoint", method="GET")
     request.assert_called_with(
-        "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=30,
+        "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=10,
     )
 
 
@@ -143,7 +143,7 @@ def test_http_request_client_cert_path(request):
         verify=True,
         cert="/some/path",
         headers=_DEFAULT_HEADERS,
-        timeout=30,
+        timeout=10,
     )
 
 
@@ -159,7 +159,7 @@ def test_http_request_server_cert_path(request):
         "http://my-host/my/endpoint",
         verify="/some/path",
         headers=_DEFAULT_HEADERS,
-        timeout=30,
+        timeout=10,
     )
 
 
@@ -185,7 +185,7 @@ def test_http_request_request_headers(request):
             "http://my-host/my/endpoint",
             verify="/some/path",
             headers={**_DEFAULT_HEADERS, "test": "header"},
-            timeout=30,
+            timeout=10,
         )
 
 
@@ -205,13 +205,13 @@ def test_http_request_wrapper(request):
     request.return_value = response
     http_request_safe(host_only, "/my/endpoint", method="GET")
     request.assert_called_with(
-        "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=30,
+        "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=10,
     )
     response.text = "non json"
     request.return_value = response
     http_request_safe(host_only, "/my/endpoint", method="GET")
     request.assert_called_with(
-        "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=30,
+        "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=10,
     )
     response.status_code = 400
     response.text = ""

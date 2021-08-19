@@ -30,16 +30,10 @@ _TRANSIENT_FAILURE_RESPONSE_CODES = [
 ]
 
 
-_logger = logging.getLogger(__name__)
-
-
-def _get_http_response_with_retries(
-    max_retries=3, backoff_factor=5, retry_codes=_TRANSIENT_FAILURE_RESPONSE_CODES, **kwargs
-):
+def _get_http_response_with_retries(max_retries, backoff_factor, retry_codes, **kwargs):
     """
     Performs an HTTP request using Python's `requests` module with an automatic retry policy.
 
-    :args: Positional arguments to pass to `requests.Session.request()`
     :max_retries: Maximum total number of retries.
     :backoff_factor: a time factor for exponential backoff. e.g. value 5 means the HTTP request
       will be retried with interval 5, 10, 20... seconds. A value of 0 turns off the exp-backoff.
@@ -67,16 +61,29 @@ def _get_http_response_with_retries(
         return response
 
 
-def http_request(host_creds, endpoint, max_retries=3, retry_interval=3, timeout=30, **kwargs):
+def http_request(
+    host_creds,
+    endpoint,
+    max_retries=3,
+    backoff_factor=5,
+    retry_codes=(429, 500, 503),
+    timeout=10,
+    **kwargs
+):
     """
     Makes an HTTP request with the specified method to the specified hostname/endpoint. Ratelimit
-    error code (429) will be retried with an exponential back off (1, 2, 4, ... seconds) for at most
-    `max_rate_limit_interval` seconds.  Internal errors (500s) will be retried up to `retries` times
-    , waiting `retry_interval` seconds between successive retries. Parses the API response
+    error code (429), service unavailable code (503) and internal errors (500) are retried with an
+    exponential back off with backoff_factor * (1, 2, 4, ... seconds). Parses the API response
     (assumed to be JSON) into a Python object and returns it.
 
-    :param host_creds: A :py:class:`mlflow.rest_utils.MlflowHostCreds` object containing
+    :host_creds: A :py:class:`mlflow.rest_utils.MlflowHostCreds` object containing
         hostname and optional authentication.
+    :endpoint: a string for service endpoint, e.g. "/path/to/object".
+    :max_retries: maximum number of retries before throwing an exception.
+    :backoff_factor: a time factor for exponential backoff. e.g. value 5 means the HTTP request
+      will be retried with interval 5, 10, 20... seconds. A value of 0 turns off the exp-backoff.
+    :retry_codes: a list of HTTP response error codes that qualifies for retry.
+    :timeout: wait for timeout seconds for response from remote server for connect and read request.
     :return: Parsed API response
     """
     hostname = host_creds.host
@@ -106,8 +113,8 @@ def http_request(host_creds, endpoint, max_retries=3, retry_interval=3, timeout=
     try:
         return _get_http_response_with_retries(
             max_retries=max_retries,
-            backoff_factor=retry_interval,
-            retry_codes=(429, 503),
+            backoff_factor=backoff_factor,
+            retry_codes=retry_codes,
             url=url,
             headers=headers,
             verify=verify,
