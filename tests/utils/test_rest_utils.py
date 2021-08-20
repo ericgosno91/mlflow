@@ -71,7 +71,7 @@ def test_http_request_hostonly(request):
     response = mock.MagicMock()
     response.status_code = 200
     request.return_value = response
-    http_request(host_only, "/my/endpoint", method="GET")
+    http_request(host_only, "/my/endpoint", "GET")
     request.assert_called_with(
         "GET", "http://my-host/my/endpoint", verify=True, headers=_DEFAULT_HEADERS, timeout=10,
     )
@@ -84,7 +84,7 @@ def test_http_request_cleans_hostname(request):
     response = mock.MagicMock()
     response.status_code = 200
     request.return_value = response
-    http_request(host_only, "/my/endpoint", method="GET")
+    http_request(host_only, "/my/endpoint", "GET")
     request.assert_called_with(
         "GET", "http://my-host/my/endpoint", verify=True, headers=_DEFAULT_HEADERS, timeout=10,
     )
@@ -96,7 +96,7 @@ def test_http_request_with_basic_auth(request):
     response = mock.MagicMock()
     response.status_code = 200
     request.return_value = response
-    http_request(host_only, "/my/endpoint", method="GET")
+    http_request(host_only, "/my/endpoint", "GET")
     headers = dict(_DEFAULT_HEADERS)
     headers["Authorization"] = "Basic dXNlcjpwYXNz"
     request.assert_called_with(
@@ -110,7 +110,7 @@ def test_http_request_with_token(request):
     response = mock.MagicMock()
     response.status_code = 200
     request.return_value = response
-    http_request(host_only, "/my/endpoint", method="GET")
+    http_request(host_only, "/my/endpoint", "GET")
     headers = dict(_DEFAULT_HEADERS)
     headers["Authorization"] = "Bearer my-token"
     request.assert_called_with(
@@ -124,7 +124,7 @@ def test_http_request_with_insecure(request):
     response = mock.MagicMock()
     response.status_code = 200
     request.return_value = response
-    http_request(host_only, "/my/endpoint", method="GET")
+    http_request(host_only, "/my/endpoint", "GET")
     request.assert_called_with(
         "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=10,
     )
@@ -136,7 +136,7 @@ def test_http_request_client_cert_path(request):
     response = mock.MagicMock()
     response.status_code = 200
     request.return_value = response
-    http_request(host_only, "/my/endpoint", method="GET")
+    http_request(host_only, "/my/endpoint", "GET")
     request.assert_called_with(
         "GET",
         "http://my-host/my/endpoint",
@@ -153,7 +153,7 @@ def test_http_request_server_cert_path(request):
     response = mock.MagicMock()
     response.status_code = 200
     request.return_value = response
-    http_request(host_only, "/my/endpoint", method="GET")
+    http_request(host_only, "/my/endpoint", "GET")
     request.assert_called_with(
         "GET",
         "http://my-host/my/endpoint",
@@ -179,7 +179,7 @@ def test_http_request_request_headers(request):
         response = mock.MagicMock()
         response.status_code = 200
         request.return_value = response
-        http_request(host_only, "/my/endpoint", method="GET")
+        http_request(host_only, "/my/endpoint", "GET")
         request.assert_called_with(
             "GET",
             "http://my-host/my/endpoint",
@@ -203,13 +203,13 @@ def test_http_request_wrapper(request):
     response.status_code = 200
     response.text = "{}"
     request.return_value = response
-    http_request_safe(host_only, "/my/endpoint", method="GET")
+    http_request_safe(host_only, "/my/endpoint", "GET")
     request.assert_called_with(
         "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=10,
     )
     response.text = "non json"
     request.return_value = response
-    http_request_safe(host_only, "/my/endpoint", method="GET")
+    http_request_safe(host_only, "/my/endpoint", "GET")
     request.assert_called_with(
         "GET", "http://my-host/my/endpoint", verify=False, headers=_DEFAULT_HEADERS, timeout=10,
     )
@@ -217,13 +217,13 @@ def test_http_request_wrapper(request):
     response.text = ""
     request.return_value = response
     with pytest.raises(MlflowException, match="Response body"):
-        http_request_safe(host_only, "/my/endpoint", method="GET")
+        http_request_safe(host_only, "/my/endpoint", "GET")
     response.text = (
         '{"error_code": "RESOURCE_DOES_NOT_EXIST", "message": "Node type not supported"}'
     )
     request.return_value = response
     with pytest.raises(RestException, match="RESOURCE_DOES_NOT_EXIST: Node type not supported"):
-        http_request_safe(host_only, "/my/endpoint", method="GET")
+        http_request_safe(host_only, "/my/endpoint", "GET")
 
 
 def test_numpy_encoder():

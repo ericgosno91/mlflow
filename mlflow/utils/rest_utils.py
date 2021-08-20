@@ -18,20 +18,26 @@ _DEFAULT_HEADERS = {"User-Agent": "mlflow-python-client/%s" % __version__}
 # Response codes that generally indicate transient network failures and merit client retries,
 # based on guidance from cloud service providers
 # (https://docs.microsoft.com/en-us/azure/architecture/best-practices/retry-service-specific#general-rest-and-retry-guidelines)
-_TRANSIENT_FAILURE_RESPONSE_CODES = [
-    408,  # Request Timeout
-    429,  # Too Many Requests
-    500,  # Internal Server Error
-    502,  # Bad Gateway
-    503,  # Service Unavailable
-    504,  # Gateway Timeout
-]
+_TRANSIENT_FAILURE_RESPONSE_CODES = frozenset(
+    [
+        408,  # Request Timeout
+        429,  # Too Many Requests
+        500,  # Internal Server Error
+        502,  # Bad Gateway
+        503,  # Service Unavailable
+        504,  # Gateway Timeout
+    ]
+)
 
 
-def _get_http_response_with_retries(max_retries, backoff_factor, retry_codes, **kwargs):
+def _get_http_response_with_retries(
+    method, url, max_retries, backoff_factor, retry_codes, **kwargs
+):
     """
     Performs an HTTP request using Python's `requests` module with an automatic retry policy.
 
+    :method: a string indicating the method to use, e.g. "GET", "POST", "PUT".
+    :url: the target URL address for the HTTP request.
     :max_retries: Maximum total number of retries.
     :backoff_factor: a time factor for exponential backoff. e.g. value 5 means the HTTP request
       will be retried with interval 5, 10, 20... seconds. A value of 0 turns off the exp-backoff.
@@ -53,8 +59,6 @@ def _get_http_response_with_retries(max_retries, backoff_factor, retry_codes, **
     with requests.Session() as http:
         http.mount("https://", adapter)
         http.mount("http://", adapter)
-        method = kwargs.pop("method")
-        url = kwargs.pop("url")
         response = http.request(method, url, **kwargs)
         return response
 
@@ -62,21 +66,23 @@ def _get_http_response_with_retries(max_retries, backoff_factor, retry_codes, **
 def http_request(
     host_creds,
     endpoint,
-    max_retries=3,
-    backoff_factor=5,
-    retry_codes=(429, 500, 503),
+    method,
+    max_retries=5,
+    backoff_factor=2,
+    retry_codes=_TRANSIENT_FAILURE_RESPONSE_CODES,
     timeout=10,
     **kwargs
 ):
     """
-    Makes an HTTP request with the specified method to the specified hostname/endpoint. Ratelimit
-    error code (429), service unavailable code (503) and internal errors (500) are retried with an
-    exponential back off with backoff_factor * (1, 2, 4, ... seconds). Parses the API response
-    (assumed to be JSON) into a Python object and returns it.
+    Makes an HTTP request with the specified method to the specified hostname/endpoint. Transient
+    errors such as Rate-limited (429), service unavailable (503) and internal error (500) are
+    retried with an exponential back off with backoff_factor * (1, 2, 4, ... seconds).
+    The function parses the API response (assumed to be JSON) into a Python object and returns it.
 
     :host_creds: A :py:class:`mlflow.rest_utils.MlflowHostCreds` object containing
         hostname and optional authentication.
     :endpoint: a string for service endpoint, e.g. "/path/to/object".
+    :method: a string indicating the method to use, e.g. "GET", "POST", "PUT".
     :max_retries: maximum number of retries before throwing an exception.
     :backoff_factor: a time factor for exponential backoff. e.g. value 5 means the HTTP request
       will be retried with interval 5, 10, 20... seconds. A value of 0 turns off the exp-backoff.
@@ -110,10 +116,11 @@ def http_request(
     url = "%s%s" % (cleaned_hostname, endpoint)
     try:
         return _get_http_response_with_retries(
+            method=method,
+            url=url,
             max_retries=max_retries,
             backoff_factor=backoff_factor,
             retry_codes=retry_codes,
-            url=url,
             headers=headers,
             verify=verify,
             timeout=timeout,
@@ -131,11 +138,11 @@ def _can_parse_as_json(string):
         return False
 
 
-def http_request_safe(host_creds, endpoint, **kwargs):
+def http_request_safe(host_creds, endpoint, method, **kwargs):
     """
     Wrapper around ``http_request`` that also verifies that the request succeeds with code 200.
     """
-    response = http_request(host_creds=host_creds, endpoint=endpoint, **kwargs)
+    response = http_request(host_creds=host_creds, endpoint=endpoint, method=method, **kwargs)
     return verify_rest_response(response, endpoint)
 
 
@@ -198,49 +205,41 @@ def call_endpoint(host_creds, endpoint, method, json_body, response_proto):
 
 
 @contextmanager
-def cloud_storage_http_request(method, *args, **kwargs):
+def cloud_storage_http_request(
+    method,
+    *args,
+    max_retries=5,
+    backoff_factor=2,
+    retry_codes=_TRANSIENT_FAILURE_RESPONSE_CODES,
+    timeout=10,
+    **kwargs
+):
     """
-    Performs an HTTP PUT/GET request using Python's `requests` module with an automatic retry
-    policy of `retry_attempts` using exponential backoff for the following response codes:
-
-        - 408 (Request Timeout)
-        - 429 (Too Many Requests)
-        - 500 (Internal Server Error)
-        - 502 (Bad Gateway)
-        - 503 (Service Unavailable)
-        - 504 (Gateway Timeout)
+    Performs an HTTP PUT/GET request using Python's `requests` module with an automatic retry.
 
     :method: string of 'PUT' or 'GET', specify to do http PUT or GET
     :args: Positional arguments to pass to `requests.Session.put/get()`
+    :max_retries: maximum number of retries before throwing an exception.
+    :backoff_factor: a time factor for exponential backoff. e.g. value 5 means the HTTP request
+      will be retried with interval 5, 10, 20... seconds. A value of 0 turns off the exp-backoff.
+    :retry_codes: a list of HTTP response error codes that qualifies for retry.
+    :timeout: wait for timeout seconds for response from remote server for connect and read request.
     :kwargs: Keyword arguments to pass to `requests.Session.put/get()`
     """
-    retry_attempts = kwargs.get("retry_attempts", 5)
-    retry_strategy = Retry(
-        total=None,
-        # Don't retry on connect-related errors raised before a request reaches a remote server
-        connect=0,
-        # Retry once for errors reading the response from a remote server
-        read=1,
-        # Limit the number of redirects to avoid infinite redirect loops
-        redirect=3,
-        # Retry a specified number of times for response codes indicating transient failures
-        status=retry_attempts,
-        status_forcelist=_TRANSIENT_FAILURE_RESPONSE_CODES,
-        backoff_factor=1,
-    )
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-    with requests.Session() as http:
-        http.mount("https://", adapter)
-        http.mount("http://", adapter)
-        if method.lower() == "put":
-            response = http.put(*args, **kwargs)
-        elif method.lower() == "get":
-            response = http.get(*args, **kwargs)
-        else:
-            raise ValueError("Illegal http method: " + method)
-
-        with response as r:
-            yield r
+    if method.lower() not in ("put", "get"):
+        raise ValueError("Illegal http method: " + method)
+    try:
+        return _get_http_response_with_retries(
+            method,
+            *args,
+            max_retries=max_retries,
+            backoff_factor=backoff_factor,
+            retry_codes=retry_codes,
+            timeout=timeout,
+            **kwargs
+        )
+    except Exception as e:
+        raise MlflowException("API request failed with exception %s" % e)
 
 
 class MlflowHostCreds(object):
