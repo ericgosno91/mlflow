@@ -38,7 +38,7 @@ def _get_http_response_with_retries(
 
     :method: a string indicating the method to use, e.g. "GET", "POST", "PUT".
     :url: the target URL address for the HTTP request.
-    :max_retries: Maximum total number of retries.
+    :param max_retries: Maximum total number of retries.
     :backoff_factor: a time factor for exponential backoff. e.g. value 5 means the HTTP request
       will be retried with interval 5, 10, 20... seconds. A value of 0 turns off the exp-backoff.
     :retry_codes: a list of HTTP response error codes that qualifies for retry.
